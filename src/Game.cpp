@@ -207,6 +207,14 @@ void g_GameEngineInternal::Game::__call_RenderGraphicsOnce() {
     // Bottom-right area
     auto powerPellet4 = m_MapBuilder.createFood_(17, 17, true);
     if (powerPellet4) m_food.emplace_back(powerPellet4);
+
+#ifdef DEBUG 
+    std::cout << "Created " << m_walls.size() << " walls" << std::endl;
+    std::cout << "Created " << m_food.size() << " food pellets" << std::endl;
+    std::cout << "Created " << m_ghosts.size() << " ghosts" << std::endl;
+    std::cout << "Pacman created: " << (m_pacman != nullptr) << std::endl;
+#endif 
+
 }
 
 // Return the reference to the map object
@@ -221,43 +229,51 @@ void g_GameEngineInternal::Game::loop() {
     while (window && window->isOpen()) {
         sf::Time deltaTime = clock.restart();
 
+        // Event handling for window close only
         while (auto event = window->pollEvent()) {
-            if (event->is<sf::Event::Closed>()) window->close();
+            if (event->is<sf::Event::Closed>()) {
+                window->close();
+            }
 
-
-            // Handle keyboard input for Pacman movement
-            if (m_pacman && event->is<sf::Event::KeyPressed>()) {
-                const auto &key = event->getIf<sf::Event::KeyPressed>(); 
-
-                switch (key->code) {
-                    case sf::Keyboard::Key::Up:
-                    case sf::Keyboard::Key::W:
-                        m_pacman->setDirection(g_PacmanEntityDecl::Direction::UP);
-                        break;
-                    case sf::Keyboard::Key::Down:
-                    case sf::Keyboard::Key::S:
-                        m_pacman->setDirection(g_PacmanEntityDecl::Direction::DOWN);
-                        break;
-                    case sf::Keyboard::Key::Left:
-                    case sf::Keyboard::Key::A:
-                        m_pacman->setDirection(g_PacmanEntityDecl::Direction::LEFT);
-                        break;
-                    case sf::Keyboard::Key::Right:
-                    case sf::Keyboard::Key::D:
-                        m_pacman->setDirection(g_PacmanEntityDecl::Direction::RIGHT);
-                        break;
-                    case sf::Keyboard::Key::Escape:
-                        window->close();
-                        break;
-                    default:
-                        break;
+            // Handle ESC key to quit
+            if (const auto* keyPressed = event->getIf<sf::Event::KeyPressed>()) {
+                if (keyPressed->code == sf::Keyboard::Key::Escape) {
+                    window->close();
                 }
             }
         }
 
+        // CONTINUOUS KEY CHECKING - Check if keys are held down
+        if (m_pacman) {
+            bool isMoving = false;
+
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Up) || 
+                    sf::Keyboard::isKeyPressed(sf::Keyboard::Key::W)) {
+                m_pacman->setDirection(g_PacmanEntityDecl::Direction::UP);
+                isMoving = true;
+            }
+            else if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Down) || 
+                    sf::Keyboard::isKeyPressed(sf::Keyboard::Key::S)) {
+                m_pacman->setDirection(g_PacmanEntityDecl::Direction::DOWN);
+                isMoving = true;
+            }
+            else if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Left) || 
+                    sf::Keyboard::isKeyPressed(sf::Keyboard::Key::A)) {
+                m_pacman->setDirection(g_PacmanEntityDecl::Direction::LEFT);
+                isMoving = true;
+            }
+            else if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Right) || 
+                    sf::Keyboard::isKeyPressed(sf::Keyboard::Key::D)) {
+                m_pacman->setDirection(g_PacmanEntityDecl::Direction::RIGHT);
+                isMoving = true;
+            }
+
+            m_pacman->setMoving(isMoving);
+        }
+
         // Update game logic
         if (curGameState == GameState::RUNNING) {
-            // Update Pacman
+            // Update Pacman - only moves if key held
             if (m_pacman) {
                 m_pacman->e_MvLogic();
             }
@@ -270,7 +286,7 @@ void g_GameEngineInternal::Game::loop() {
             }
         }
 
-        // Render everything
+        // Render
         window->clear(sf::Color::Black);
         this->__call_RenderGraphics();
         window->display();

@@ -8,89 +8,98 @@
 
 namespace g_PacmanEntityDecl {
 
-enum class Direction { UP, DOWN, LEFT, RIGHT };
+    enum class Direction { UP, DOWN, LEFT, RIGHT };
 
-class Pacman : public g_PacmanEntityDecl::AliveEntity, public sf::Drawable {
-private:
-  static Pacman *instance;
-  static std::mutex p_MutexLock;
+    class Pacman : public g_PacmanEntityDecl::AliveEntity, public sf::Drawable {
+        public:
+            Pacman(const Pacman &cpObject) = delete;
+            static Pacman *Instance() noexcept;
 
-  sf::Texture textureUp_;
-  sf::Texture textureDown_;
-  sf::Texture textureLeft_;
-  sf::Texture textureRight_;
-  std::optional<sf::Sprite> sprite_;
-  
-  Direction currentDirection_;
+            void e_MvLogic() noexcept override;
 
-  Pacman() : currentDirection_(Direction::RIGHT) {
-    // Load all direction textures
-    if (!textureUp_.loadFromFile("../assets/pacmanUp.png")) {
-      // Fallback or error handling
-    }
-    if (!textureDown_.loadFromFile("../assets/pacmanDown.png")) {
-      // Fallback or error handling
-    }
-    if (!textureLeft_.loadFromFile("../assets/pacmanLeft.png")) {
-      // Fallback or error handling
-    }
-    if (!textureRight_.loadFromFile("../assets/pacmanRight.png")) {
-      // Fallback or error handling
-    }
-    
-    // Start with right-facing texture
-    sprite_.emplace(textureRight_);
-    
-    // Scale sprite to fit block size if needed
-    float scaleX = static_cast<float>(blockSize) / textureRight_.getSize().x;
-    float scaleY = static_cast<float>(blockSize) / textureRight_.getSize().y;
-    sprite_->setScale({scaleX, scaleY});
-  }
+            void setPosition(std::uint16_t gridX, std::uint16_t gridY) {
+                this->x = this->blockSize * gridX;
+                this->y = this->blockSize * gridY;
+                p_Sprite->setPosition({static_cast<float>(this->x), static_cast<float>(this->y)});
+            }
 
-  // sf::Drawable override
-  void draw(sf::RenderTarget &target, sf::RenderStates states) const override {
-    target.draw(*sprite_, states);
-  }
+            void setDirection(Direction dir) {
+                currentDirection_ = dir;
 
-public:
-  Pacman(const Pacman &cpObject) = delete;
-  static Pacman *Instance() noexcept;
+                // CRITICAL FIX: Save current position before changing texture
+                // setTexture() can reset the sprite's transform in some SFML versions
+                auto currentPos = p_Sprite->getPosition();
+                auto currentScale = p_Sprite->getScale();
 
-  void e_MvLogic() noexcept override;
-  
-  void setPosition(std::uint16_t gridX, std::uint16_t gridY) {
-    this->x = this->blockSize * gridX;
-    this->y = this->blockSize * gridY;
-    sprite_->setPosition({static_cast<float>(this->x), static_cast<float>(this->y)});
-  }
+                switch (dir) {
+                    case g_PacmanEntityDecl::Direction::UP:
+                        p_Sprite.emplace(textureUp_);
+                        break;
+                    case g_PacmanEntityDecl::Direction::DOWN:
+                        p_Sprite.emplace(textureDown_);
+                        break;
+                    case g_PacmanEntityDecl::Direction::LEFT:
+                        p_Sprite.emplace(textureLeft_);
+                        break;
+                    case g_PacmanEntityDecl::Direction::RIGHT:
+                        p_Sprite.emplace(textureRight_);
+                        break;
+                }
 
-  void setDirection(Direction dir) {
-    currentDirection_ = dir;
+                p_Sprite->setPosition(currentPos); 
+                p_Sprite->setScale(currentScale); 
+            }
+                
+            // For better movement manipulation
+            bool isMoving() const { return isMoving_; }
+            void setMoving(bool moving) { isMoving_ = moving; }
 
-    // CRITICAL FIX: Save current position before changing texture
-    // setTexture() can reset the sprite's transform in some SFML versions
-    auto currentPos = sprite_->getPosition();
-    auto currentScale = sprite_->getScale();
 
-    switch (dir) {
-      case Direction::UP:
-        sprite_.emplace(textureUp_);
-        break;
-      case Direction::DOWN:
-        sprite_.emplace(textureDown_);
-        break;
-      case Direction::LEFT:
-        sprite_.emplace(textureLeft_);
-        break;
-      case Direction::RIGHT:
-        sprite_.emplace(textureRight_);
-        break;
-    }
+            g_PacmanEntityDecl::Direction getDirection() const { return currentDirection_; }
 
-    sprite_->setPosition(currentPos); 
-    sprite_->setScale(currentScale); 
-  }
 
-  Direction getDirection() const { return currentDirection_; }
-};
+        private:
+            static Pacman *instance;
+            static std::mutex p_MutexLock;
+
+            sf::Texture textureUp_;
+            sf::Texture textureDown_;
+            sf::Texture textureLeft_;
+            sf::Texture textureRight_;
+            std::optional<sf::Sprite> p_Sprite;
+
+            g_PacmanEntityDecl::Direction currentDirection_;
+
+            bool isMoving_ = false; 
+
+            Pacman() : currentDirection_(Direction::RIGHT) {
+                // Load all direction textures
+                if (!textureUp_.loadFromFile("../assets/pacmanUp.png")) {
+                    // Fallback or error handling
+                }
+                if (!textureDown_.loadFromFile("../assets/pacmanDown.png")) {
+                    // Fallback or error handling
+                }
+                if (!textureLeft_.loadFromFile("../assets/pacmanLeft.png")) {
+                    // Fallback or error handling
+                }
+                if (!textureRight_.loadFromFile("../assets/pacmanRight.png")) {
+                    // Fallback or error handling
+                }
+
+                // Start with right-facing texture
+                p_Sprite.emplace(textureRight_);
+
+                // Scale sprite to fit block size if needed
+                float scaleX = static_cast<float>(blockSize) / textureRight_.getSize().x;
+                float scaleY = static_cast<float>(blockSize) / textureRight_.getSize().y;
+                p_Sprite->setScale({scaleX, scaleY});
+            }
+
+            // sf::Drawable override
+            void draw(sf::RenderTarget &target, sf::RenderStates states) const override {
+                target.draw(*p_Sprite, states);
+            }
+
+    };
 } // namespace g_PacmanEntityDecl

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "e_AliveEntity.h"
+#include "e_Pacman.h"
 #include <SFML/Graphics.hpp>
 #include <string>
 
@@ -46,6 +47,9 @@ private:
   g_GhostProperty::GhostColor ghostColor_;
   bool isScared_;
 
+  // New per-ghost movement direction
+  g_PacmanEntityDecl::Direction currentDirection_;
+  
   void loadTexture() {
     std::string filename;
     switch (ghostColor_) {

@@ -53,7 +53,6 @@ namespace g_PacmanEntityDecl {
         private:
             bool isPowerPellet_;
             bool isEaten_;
-            std::bool_constant<true> useTexture_;
 
             // Pretty messy around
             // Migrate from SFML 2 to SFML 3
@@ -62,11 +61,15 @@ namespace g_PacmanEntityDecl {
             sf::CircleShape circle_;
 
             void draw(sf::RenderTarget &target, sf::RenderStates states) const override {
-                if (!isEaten_) {
-                    if (sprite_) {
-                        target.draw(*sprite_, states);
-                    } 
-                }
+                    if (!isEaten_) {
+        if (sprite_) {
+            // Draw power pellet sprite
+            target.draw(*sprite_, states);
+        } else {
+            // Draw regular food circle
+            target.draw(circle_, states);
+        }
+    }
             }
     };
 
