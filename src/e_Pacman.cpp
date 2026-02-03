@@ -16,4 +16,7 @@ g_PacmanEntityDecl::Pacman *Pacman::Instance() noexcept {
   return instance;
 }
 
-void g_PacmanEntityDecl::Pacman::e_MvLogic() noexcept {}
+void g_PacmanEntityDecl::Pacman::e_MvLogic() noexcept {
+  // Movement logic will be implemented here
+  // For now, this handles the basic entity behavior
+}
