@@ -66,6 +66,12 @@ public:
 
   void setDirection(Direction dir) {
     currentDirection_ = dir;
+
+    // CRITICAL FIX: Save current position before changing texture
+    // setTexture() can reset the sprite's transform in some SFML versions
+    auto currentPos = sprite_->getPosition();
+    auto currentScale = sprite_->getScale();
+
     switch (dir) {
       case Direction::UP:
         sprite_.emplace(textureUp_);
@@ -80,6 +86,9 @@ public:
         sprite_.emplace(textureRight_);
         break;
     }
+
+    sprite_->setPosition(currentPos); 
+    sprite_->setScale(currentScale); 
   }
 
   Direction getDirection() const { return currentDirection_; }
