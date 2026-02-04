@@ -49,11 +49,23 @@ namespace g_PacmanEntityDecl {
                 p_Sprite->setPosition(currentPos); 
                 p_Sprite->setScale(currentScale); 
             }
-                
+
+            void update(float deltaTime);
+
             // For better movement manipulation
-            bool isMoving() const { return isMoving_; }
+            [[nodiscard]] bool isMoving() const { return isMoving_; }
             void setMoving(bool moving) { isMoving_ = moving; }
 
+            void setDesiredDirection(Direction dir) { desiredDirection_ = dir; }
+
+            // Getter for grid position
+            std::uint16_t getGridX() const { 
+                return static_cast<std::uint16_t>(p_Sprite->getPosition().x) / blockSize; 
+            }
+
+            std::uint16_t getGridY() const { 
+                return static_cast<std::uint16_t>(p_Sprite->getPosition().y) / blockSize; 
+            }
 
             g_PacmanEntityDecl::Direction getDirection() const { return currentDirection_; }
 
@@ -68,11 +80,18 @@ namespace g_PacmanEntityDecl {
             sf::Texture textureRight_;
             std::optional<sf::Sprite> p_Sprite;
 
+            g_PacmanEntityDecl::Direction desiredDirection_;  // Direction player wants to go
             g_PacmanEntityDecl::Direction currentDirection_;
 
             bool isMoving_ = false; 
+            bool isAligned_ = true;       // Is Pacman aligned to grid?
 
-            Pacman() : currentDirection_(Direction::RIGHT) {
+            float moveTimer_;              // Timer for movement
+            static constexpr float MOVE_DELAY = 0.1f;  // Move every 0.1 seconds (adjustable)
+
+
+            Pacman() : currentDirection_(g_PacmanEntityDecl::Direction::RIGHT), 
+            desiredDirection_(g_PacmanEntityDecl::Direction::RIGHT), moveTimer_(0.0f) {
                 // Load all direction textures
                 if (!textureUp_.loadFromFile("../assets/pacmanUp.png")) {
                     // Fallback or error handling
@@ -94,6 +113,29 @@ namespace g_PacmanEntityDecl {
                 float scaleX = static_cast<float>(blockSize) / textureRight_.getSize().x;
                 float scaleY = static_cast<float>(blockSize) / textureRight_.getSize().y;
                 p_Sprite->setScale({scaleX, scaleY});
+            }
+            // Helper methods
+            bool isPositionAligned() const {
+                int offsetX = static_cast<int>(p_Sprite->getPosition().x) % blockSize;
+                int offsetY = static_cast<int>(p_Sprite->getPosition().y) % blockSize;
+                return (offsetX == 0 && offsetY == 0);
+            }
+
+            bool canMoveInDirection(Direction dir) const; 
+
+            void snapToGrid() {
+                auto pos = p_Sprite->getPosition();
+
+                // Round to nearest grid cell center
+                int gridX = static_cast<int>(pos.x + blockSize / 2.0f) / blockSize;
+                int gridY = static_cast<int>(pos.y + blockSize / 2.0f) / blockSize;
+
+                float centerX = gridX * blockSize;
+                float centerY = gridY * blockSize;
+
+                p_Sprite->setPosition({centerX, centerY});
+                this->x = static_cast<std::uint16_t>(centerX);
+                this->y = static_cast<std::uint16_t>(centerY);
             }
 
             // sf::Drawable override

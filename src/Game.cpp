@@ -9,12 +9,13 @@
 #include <SFML/Graphics/RenderWindow.hpp>
 #include <cstdlib>
 #include <memory>
+#include <iostream> 
 
 g_GameEngineInternal::Map g_GameEngineInternal::Game::map;
 std::shared_mutex g_GameEngineInternal::Game::m_WindowMutexLock;
 
 g_GameEngineInternal::Game::Game() 
-    : m_pacman(nullptr), score_(0), lives_(3) {
+    : m_pacman(nullptr), score_(0), lives_(3), foodEaten_(0), totalFood_(0) {
         curGameState = g_GameEngineInternal::GameState::RUNNING;
         m_GraphicsRenderer =
             g_GameEngineInternal::Graphics::GraphicsRenderer::__pRenderGraphicsI();
@@ -79,7 +80,7 @@ void g_GameEngineInternal::Game::__call_RenderGraphics() {
 }
 
 // Lazy init - create all entities from the map
-void g_GameEngineInternal::Game::__call_RenderGraphicsOnce() {
+constexpr void g_GameEngineInternal::Game::__call_RenderGraphicsOnce() {
     // Ensure we have a default map if none provided yet
     if (Game::map.empty()) {
         this->map = m_MapBuilder.createDefaultMap();
@@ -113,6 +114,8 @@ void g_GameEngineInternal::Game::__call_RenderGraphicsOnce() {
                         if (m_pacman) {
                             m_pacman->setPosition(static_cast<std::uint16_t>(x), 
                                     static_cast<std::uint16_t>(y));
+
+                            pacmanSpawnPos_ = {static_cast<unsigned int>(x), static_cast<unsigned int>(y)};
                         }
                         break;
                     }
@@ -125,6 +128,7 @@ void g_GameEngineInternal::Game::__call_RenderGraphicsOnce() {
                         if (ghost) {
                             ghost->setPosition(static_cast<std::uint16_t>(x), 
                                     static_cast<std::uint16_t>(y));
+                            ghostSpawnPositions_.push_back({static_cast<unsigned int>(x), static_cast<unsigned int>(y)});
                             m_ghosts.emplace_back(ghost);
                         }
                         break;
@@ -191,7 +195,7 @@ void g_GameEngineInternal::Game::__call_RenderGraphicsOnce() {
         }
     }
 
-    // Add power pellets at corners (you can customize these positions)
+    // Add power pellets at corners (Bruh) 
     // Top-left area
     auto powerPellet1 = m_MapBuilder.createFood_(1, 3, true);
     if (powerPellet1) m_food.emplace_back(powerPellet1);
@@ -215,6 +219,7 @@ void g_GameEngineInternal::Game::__call_RenderGraphicsOnce() {
     std::cout << "Pacman created: " << (m_pacman != nullptr) << std::endl;
 #endif 
 
+    totalFood_ = m_food.size(); 
 }
 
 // Return the reference to the map object
@@ -222,12 +227,111 @@ g_GameEngineInternal::Map &g_GameEngineInternal::Game::getMap() {
     return map; 
 }
 
+void g_GameEngineInternal::Game::respawnPacman() {
+    if (m_pacman) {
+        m_pacman->setPosition(pacmanSpawnPos_.x, pacmanSpawnPos_.y);
+        m_pacman->setDirection(g_PacmanEntityDecl::Direction::RIGHT);
+        m_pacman->setDesiredDirection(g_PacmanEntityDecl::Direction::RIGHT);
+        std::cout << "Pacman respawned at (" << pacmanSpawnPos_.x << ", " << pacmanSpawnPos_.y << ")" << std::endl;
+    }
+}
+
+void g_GameEngineInternal::Game::respawnGhosts() {
+    for (size_t i = 0; i < m_ghosts.size() && i < ghostSpawnPositions_.size(); ++i) {
+        if (m_ghosts[i]) {
+            m_ghosts[i]->setPosition(ghostSpawnPositions_[i].x, ghostSpawnPositions_[i].y);
+            m_ghosts[i]->setScared(false);
+        }
+    }
+}
+
+void g_GameEngineInternal::Game::checkFoodCollision() {
+    if (!m_pacman) return;
+
+    int pacmanGridX = m_pacman->getGridX();
+    int pacmanGridY = m_pacman->getGridY();
+
+    for (auto& food : m_food) {
+        if (!food || food->isEaten()) continue;
+
+        // Get food grid position
+        int foodGridX = food->getGridX();
+        int foodGridY = food->getGridY();
+
+        // Check if Pacman is on same grid cell as food
+        if (pacmanGridX == foodGridX && pacmanGridY == foodGridY) {
+            food->setEaten(true);
+            foodEaten_++;
+
+            // Add score
+            if (food->isPowerPellet()) {
+                score_ += 50;  // Power pellet worth more
+                scaredTimer_ = SCARED_DURATION;
+
+                // Make ghosts scared
+                for (auto& ghost : m_ghosts) {
+                    if (ghost) {
+                        //ghost->setScared(true);
+                    }
+                }
+
+                // TODO: Start timer to un-scare ghosts after ~10 seconds
+            } else {
+                score_ += 10;  // Regular food
+            }
+#ifdef DEBUG 
+            std::cout << "Food eaten! Score: " << score_ 
+                << " (" << foodEaten_ << "/" << totalFood_ << ")" << std::endl;
+#endif
+
+        }
+    }
+}
+
+void g_GameEngineInternal::Game::checkGhostCollision() {
+    if (!m_pacman) return;
+
+    int pacmanGridX = m_pacman->getGridX();
+    int pacmanGridY = m_pacman->getGridY();
+
+    for (auto& ghost : m_ghosts) {
+        if (!ghost) continue;
+
+        int ghostGridX = ghost->getGridX();
+        int ghostGridY = ghost->getGridY();
+
+        // Check if Pacman is on same grid cell as ghost
+        if (pacmanGridX == ghostGridX && pacmanGridY == ghostGridY) {
+            if (ghost->isScared()) {
+                // Eat the ghost - send it back to spawn
+                score_ += 200;
+                ghost->setScared(false);
+                ghost->respawn();  // Send back to starting position
+                std::cout << "Ghost eaten! Score: " << score_ << std::endl;
+            } else {
+                // Ghost catches Pacman - lose a life
+                lives_--;
+                std::cout << "Caught by ghost! Lives: " << lives_ << std::endl;
+
+                if (lives_ <= 0) {
+                    // Game over
+                    curGameState = GameState::PAUSED;
+                    std::cout << "GAME OVER! Final Score: " << score_ << std::endl;
+                } else {
+                    // Respawn Pacman
+                    respawnPacman();
+                }
+            }
+        }
+    }
+}
+
 void g_GameEngineInternal::Game::loop() {
-    // Game loop
     sf::Clock clock;
 
     while (window && window->isOpen()) {
         sf::Time deltaTime = clock.restart();
+        float dt = deltaTime.asSeconds();  // Convert to seconds
 
         // Event handling for window close only
         while (auto event = window->pollEvent()) {
@@ -235,7 +339,6 @@ void g_GameEngineInternal::Game::loop() {
                 window->close();
             }
 
-            // Handle ESC key to quit
             if (const auto* keyPressed = event->getIf<sf::Event::KeyPressed>()) {
                 if (keyPressed->code == sf::Keyboard::Key::Escape) {
                     window->close();
@@ -243,27 +346,31 @@ void g_GameEngineInternal::Game::loop() {
             }
         }
 
-        // CONTINUOUS KEY CHECKING - Check if keys are held down
+        // Input handling - set desired direction
         if (m_pacman) {
             bool isMoving = false;
 
             if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Up) || 
                     sf::Keyboard::isKeyPressed(sf::Keyboard::Key::W)) {
+                m_pacman->setDesiredDirection(g_PacmanEntityDecl::Direction::UP);
                 m_pacman->setDirection(g_PacmanEntityDecl::Direction::UP);
                 isMoving = true;
             }
             else if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Down) || 
                     sf::Keyboard::isKeyPressed(sf::Keyboard::Key::S)) {
+                m_pacman->setDesiredDirection(g_PacmanEntityDecl::Direction::DOWN);
                 m_pacman->setDirection(g_PacmanEntityDecl::Direction::DOWN);
                 isMoving = true;
             }
             else if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Left) || 
                     sf::Keyboard::isKeyPressed(sf::Keyboard::Key::A)) {
+                m_pacman->setDesiredDirection(g_PacmanEntityDecl::Direction::LEFT);
                 m_pacman->setDirection(g_PacmanEntityDecl::Direction::LEFT);
                 isMoving = true;
             }
             else if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Right) || 
                     sf::Keyboard::isKeyPressed(sf::Keyboard::Key::D)) {
+                m_pacman->setDesiredDirection(g_PacmanEntityDecl::Direction::RIGHT);
                 m_pacman->setDirection(g_PacmanEntityDecl::Direction::RIGHT);
                 isMoving = true;
             }
@@ -271,11 +378,13 @@ void g_GameEngineInternal::Game::loop() {
             m_pacman->setMoving(isMoving);
         }
 
-        // Update game logic
+        // Update game logic with delta time
         if (curGameState == GameState::RUNNING) {
-            // Update Pacman - only moves if key held
             if (m_pacman) {
-                m_pacman->e_MvLogic();
+                m_pacman->update(dt);  // Timer-based discrete movement
+
+                checkFoodCollision();
+                checkGhostCollision(); 
             }
 
             // Update ghosts
@@ -286,6 +395,18 @@ void g_GameEngineInternal::Game::loop() {
             }
         }
 
+        // Update scared timer
+        if (scaredTimer_ > 0.0f) {
+            scaredTimer_ -= dt;
+            if (scaredTimer_ <= 0.0f) {
+                // Time's up - ghosts back to normal
+                for (auto& ghost : m_ghosts) {
+                    if (ghost) {
+                        ghost->setScared(false);
+                    }
+                }
+            }
+        }
         // Render
         window->clear(sf::Color::Black);
         this->__call_RenderGraphics();

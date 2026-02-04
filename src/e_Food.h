@@ -50,6 +50,9 @@ namespace g_PacmanEntityDecl {
 
             bool isPowerPellet() const { return isPowerPellet_; }
 
+
+            std::uint16_t getGridX() const { return x / blockSize; }
+            std::uint16_t getGridY() const { return y / blockSize; }
         private:
             bool isPowerPellet_;
             bool isEaten_;
@@ -61,15 +64,15 @@ namespace g_PacmanEntityDecl {
             sf::CircleShape circle_;
 
             void draw(sf::RenderTarget &target, sf::RenderStates states) const override {
-                    if (!isEaten_) {
-        if (sprite_) {
-            // Draw power pellet sprite
-            target.draw(*sprite_, states);
-        } else {
-            // Draw regular food circle
-            target.draw(circle_, states);
-        }
-    }
+                if (!isEaten_) {
+                    if (sprite_) {
+                        // Draw power pellet sprite
+                        target.draw(*sprite_, states);
+                    } else {
+                        // Draw regular food circle
+                        target.draw(circle_, states);
+                    }
+                }
             }
     };
 

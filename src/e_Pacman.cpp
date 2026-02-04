@@ -17,75 +17,96 @@ g_PacmanEntityDecl::Pacman *Pacman::Instance() noexcept {
     return instance;
 }
 
+bool g_PacmanEntityDecl::Pacman::canMoveInDirection(Direction dir) const {
+    auto &map = g_GameEngineInternal::Game::getMap();
+    if (map.empty()) return false;
+    
+    auto pos = p_Sprite->getPosition();
+    
+    // Get current grid position (with proper rounding)
+    int gridX = static_cast<int>(pos.x + 0.5f) / blockSize;
+    int gridY = static_cast<int>(pos.y + 0.5f) / blockSize;
+    
+    // Calculate target grid position
+    int targetGridX = gridX;
+    int targetGridY = gridY;
+    
+    switch (dir) {
+        case Direction::UP:    targetGridY--; break;
+        case Direction::DOWN:  targetGridY++; break;
+        case Direction::LEFT:  targetGridX--; break;
+        case Direction::RIGHT: targetGridX++; break;
+    }
+    
+    // Check bounds
+    if (targetGridY < 0 || targetGridY >= static_cast<int>(map.size()) ||
+        targetGridX < 0 || targetGridX >= static_cast<int>(map[targetGridY].size())) {
+        return false;
+    }
+    
+    // Check if target is not a wall
+    return map[targetGridY][targetGridX] != 'X';
+}
+
+void g_PacmanEntityDecl::Pacman::update(float deltaTime) {
+    if (!isMoving_) {
+        moveTimer_ = 0.0f;  // Reset timer when not moving
+        return;
+    }
+    
+    moveTimer_ += deltaTime;
+    
+    // Move when timer exceeds delay
+    if (moveTimer_ >= MOVE_DELAY) {
+        moveTimer_ = 0.0f;  // Reset timer
+        e_MvLogic();        // Execute one discrete move
+    }
+}
+
 void g_PacmanEntityDecl::Pacman::e_MvLogic() noexcept {
-    if (!isMoving_) return;  
-
-    // Pacman movement with collision detection
     if (!p_Sprite) return;
-
-    // Get the game map for collision checking
+    
     auto &map = g_GameEngineInternal::Game::getMap();
     if (map.empty()) return;
-
-    // Movement speed (pixels per frame at 60 FPS)
-    constexpr float speed = 6.0f;
-
-    // Calculate target position based on current direction
-    auto currentPos = p_Sprite->getPosition();
-    sf::Vector2f targetPos = currentPos;
-
+    
+    // Get current grid position
+    auto pos = p_Sprite->getPosition();
+    int gridX = static_cast<int>(pos.x) / blockSize;
+    int gridY = static_cast<int>(pos.y) / blockSize;
+    
+    // Try to change to desired direction if possible
+    if (desiredDirection_ != currentDirection_) {
+        if (canMoveInDirection(desiredDirection_)) {
+            currentDirection_ = desiredDirection_;
+        }
+    }
+    
+    // Calculate next grid position
+    int nextGridX = gridX;
+    int nextGridY = gridY;
+    
     switch (currentDirection_) {
-        case g_PacmanEntityDecl::Direction::UP:
-            targetPos.y -= speed;
-            break;
-        case g_PacmanEntityDecl::Direction::DOWN:
-            targetPos.y += speed;
-            break;
-        case g_PacmanEntityDecl::Direction::LEFT:
-            targetPos.x -= speed;
-            break;
-        case g_PacmanEntityDecl::Direction::RIGHT:
-            targetPos.x += speed;
-            break;
+        case Direction::UP:    nextGridY--; break;
+        case Direction::DOWN:  nextGridY++; break;
+        case Direction::LEFT:  nextGridX--; break;
+        case Direction::RIGHT: nextGridX++; break;
     }
-
-    // Check if the target position collides with a wall
-    // We need to check multiple points because the sprite is 50x50
-    bool canMove = true;
-
-    // Check corners of the sprite at target position (with small margin)
-    std::vector<sf::Vector2f> checkPoints = {
-        {targetPos.x + 10, targetPos.y + 10},                       // Top-left
-        {targetPos.x + blockSize - 10, targetPos.y + 10},           // Top-right
-        {targetPos.x + 10, targetPos.y + blockSize - 10},           // Bottom-left
-        {targetPos.x + blockSize - 10, targetPos.y + blockSize - 10}  // Bottom-right
-    };
-
-    for (const auto& point : checkPoints) {
-        int gridX = static_cast<int>(point.x) / blockSize;
-        int gridY = static_cast<int>(point.y) / blockSize;
-
-        // Check bounds
-        if (gridY < 0 || gridY >= static_cast<int>(map.size()) ||
-                gridX < 0 || gridX >= static_cast<int>(map[gridY].size())) {
-            canMove = false;
-            break;
-        }
-
-        // Check if it's a wall
-        if (map[gridY][gridX] == 'X') {
-            canMove = false;
-            break;
-        }
+    
+    // Check if next position is valid
+    if (nextGridY < 0 || nextGridY >= static_cast<int>(map.size()) ||
+        nextGridX < 0 || nextGridX >= static_cast<int>(map[nextGridY].size())) {
+        return;  // Can't move - out of bounds
     }
-
-    // If we can move, update position
-    if (canMove) {
-        p_Sprite->setPosition(targetPos);
-        this->x = static_cast<std::uint16_t>(targetPos.x);
-        this->y = static_cast<std::uint16_t>(targetPos.y);
+    
+    if (map[nextGridY][nextGridX] == 'X') {
+        return;  // Can't move - wall
     }
-    // If blocked, Pacman stays in place (doesn't change direction)
-
-
+    
+    // Valid move - update position to exact grid cell
+    float newX = nextGridX * blockSize;
+    float newY = nextGridY * blockSize;
+    
+    p_Sprite->setPosition({newX, newY});
+    this->x = static_cast<std::uint16_t>(newX);
+    this->y = static_cast<std::uint16_t>(newY);
 }

@@ -30,51 +30,67 @@
 
 namespace g_GameEngineInternal {
 
-enum class GameState { PAUSED, RUNNING };
+    enum class GameState { PAUSED, RUNNING };
 
-constexpr int imgCount = 13;
+    constexpr int imgCount = 13;
 
-class Game {
-  static constexpr int bpp = 255;
-  static constexpr sf::Vector2u winsize = {950, 1050};
+    class Game 
+    {
+        static constexpr int bpp = 255;
+        static constexpr sf::Vector2u winsize = {950, 1050};
 
-  friend class g_GameEngineInternal::MapBuilder;
-  friend class g_GameEngineInternal::Graphics::GraphicsRenderer;
+        friend class g_GameEngineInternal::MapBuilder;
+        friend class g_GameEngineInternal::Graphics::GraphicsRenderer;
 
-public:
-  Game();
-  Game(const Game &&gInstance);
-  ~Game();
+        public:
+        Game();
+        Game(const Game &&gInstance);
+        ~Game();
 
-  void __call_RenderGraphics();
-  void __call_RenderGraphicsOnce();
+        void checkFoodCollision();
+        int getScore() const { return score_; }
+        int getFoodEaten() const { return foodEaten_; }
 
-  static Map &getMap();
+        void __call_RenderGraphics();
+        constexpr void __call_RenderGraphicsOnce();
 
-  void loop();
+        void checkGhostCollision();
+        void respawnPacman();
+        void respawnGhosts();
 
-private:
-  g_GameEngineInternal::MapBuilder m_MapBuilder;
-  g_GameEngineInternal::Graphics::GraphicsRenderer *m_GraphicsRenderer;
+        static Map &getMap();
 
-  g_GameEngineInternal::GameState curGameState;
+        void loop();
 
-  sf::RenderWindow *window;
+        private:
+        g_GameEngineInternal::MapBuilder m_MapBuilder;
+        g_GameEngineInternal::Graphics::GraphicsRenderer *m_GraphicsRenderer;
 
-  std::shared_ptr<sf::RenderWindow> m_SharedWindowPtr;
-  std::unique_ptr<sf::RenderTexture> m_wRenderTexture;
-  static std::shared_mutex m_WindowMutexLock;
+        g_GameEngineInternal::GameState curGameState;
 
-  static g_GameEngineInternal::Map map;
+        sf::RenderWindow *window;
 
-  // Store created entities
-  std::vector<std::unique_ptr<g_PacmanEntityDecl::Wall>> m_walls;
-  g_PacmanEntityDecl::Pacman* m_pacman;
-  std::vector<std::unique_ptr<g_PacmanEntityDecl::Ghost>> m_ghosts;
-  std::vector<std::unique_ptr<g_PacmanEntityDecl::Food>> m_food;
-  
-  // Game state
-  int score_;
-  int lives_;
-};
+        std::shared_ptr<sf::RenderWindow> m_SharedWindowPtr;
+        std::unique_ptr<sf::RenderTexture> m_wRenderTexture;
+        static std::shared_mutex m_WindowMutexLock;
+
+        static g_GameEngineInternal::Map map;
+
+        // Store created entities
+        std::vector<std::unique_ptr<g_PacmanEntityDecl::Wall>> m_walls;
+        g_PacmanEntityDecl::Pacman* m_pacman;
+        std::vector<std::unique_ptr<g_PacmanEntityDecl::Ghost>> m_ghosts;
+        std::vector<std::unique_ptr<g_PacmanEntityDecl::Food>> m_food;
+
+        sf::Vector2u pacmanSpawnPos_;  // Store initial spawn position
+        std::vector<sf::Vector2u> ghostSpawnPositions_;  // Store ghost spawns
+
+        float scaredTimer_;
+        static constexpr float SCARED_DURATION = 10.0f;
+        // Game state
+        int score_;
+        int foodEaten_;
+        int totalFood_;
+        int lives_;
+    };
 } // namespace g_GameEngineInternal
